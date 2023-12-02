@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use advent_of_code_2022::*;
+use advent_of_code_2023::*;
 
 #[cfg(feature = "io")]
 macro_rules! input_str {

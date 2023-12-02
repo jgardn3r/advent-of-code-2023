@@ -1,4 +1,3 @@
-#![feature(portable_simd)]
 #[macro_use]
 extern crate aoc_runner_derive;
 
