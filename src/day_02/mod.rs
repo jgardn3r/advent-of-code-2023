@@ -12,11 +12,19 @@ use nom::{
     IResult, Parser,
 };
 
+type Colours = (u32, u32, u32);
+fn add_colours(lhs: Colours, rhs: Colours) -> Colours {
+    (lhs.0 + rhs.0, lhs.1 + rhs.1, lhs.2 + rhs.2)
+}
+fn colours_scale(target: Colours, scale: u32) -> Colours {
+    (target.0 * scale, target.1 * scale, target.2 * scale)
+}
+
 #[derive(Debug)]
 struct Game {
     id: u32,
     // r, g, b
-    max_colours: (u32, u32, u32),
+    max_colours: Colours,
 }
 
 pub struct Input {
@@ -30,37 +38,24 @@ fn game_id(input: &str) -> IResult<&str, u32> {
     )(input)
 }
 
-fn game_view(input: &str) -> IResult<&str, (u32, u32, u32)> {
-    let result: IResult<&str, Vec<(u32, u32, u32)>> = separated_list1(
+fn game_view(input: &str) -> IResult<&str, Colours> {
+    let result: IResult<&str, Vec<Colours>> = separated_list1(
         tag(", "),
-        alt((
-            separated_pair(
-                map_res(recognize(take_while1(char::is_numeric)), str::parse),
-                space1,
-                tag_no_case("red"),
-            )
-            .map(|(num, _colour)| (num, 0, 0)),
-            separated_pair(
-                map_res(recognize(take_while1(char::is_numeric)), str::parse),
-                space1,
-                tag_no_case("green"),
-            )
-            .map(|(num, _colour)| (0, num, 0)),
-            separated_pair(
-                map_res(recognize(take_while1(char::is_numeric)), str::parse),
-                space1,
-                tag_no_case("blue"),
-            )
-            .map(|(num, _colour)| (0, 0, num)),
-        )),
+        separated_pair(
+            map_res(recognize(take_while1(char::is_numeric)), str::parse::<u32>),
+            space1,
+            alt((
+                tag_no_case("red").map(|_| (1, 0, 0)),
+                tag_no_case("green").map(|_| (0, 1, 0)),
+                tag_no_case("blue").map(|_| (0, 0, 1)),
+            )),
+        )
+        .map(|(num, colours)| colours_scale(colours, num)),
     )(input);
     result.map(|(result, parts)| {
         (
             result,
-            parts
-                .into_iter()
-                .reduce(|acc, val| (acc.0 + val.0, acc.1 + val.1, acc.2 + val.2))
-                .unwrap_or_default(),
+            parts.into_iter().reduce(add_colours).unwrap_or_default(),
         )
     })
 }
@@ -155,7 +150,7 @@ mod tests {
         two_colours = { "1 blue, 1 red", (1, 0, 1) },
         three_colours = { "1 blue, 1 green, 2 red", (2, 1, 1) },
     )]
-    fn game_view_parser(input: &str, expected_view: (u32, u32, u32)) {
+    fn game_view_parser(input: &str, expected_view: Colours) {
         let (_, view) = game_view(input).unwrap();
         assert_eq!(view, expected_view);
     }
@@ -167,7 +162,7 @@ mod tests {
         game_4 = { "Game 4: 1 green, 3 red, 6 blue; 3 green, 6 red; 3 green, 15 blue, 14 red", (14, 3, 15) } ,
         game_5 = { "Game 5: 6 red, 1 blue, 3 green; 2 blue, 1 red, 2 green", (6, 3, 2) } ,
     )]
-    fn minimum_colours(input_line: &str, expected_mins: (u32, u32, u32)) {
+    fn minimum_colours(input_line: &str, expected_mins: Colours) {
         let game = parse_game_line(input_line).unwrap();
         assert_eq!(game.max_colours, expected_mins);
     }
