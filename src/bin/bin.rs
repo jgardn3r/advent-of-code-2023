@@ -46,6 +46,7 @@ macro_rules! run_day {
 
 pub fn main() {
     let instant = Instant::now();
+    run_day_with_generator!(day_01, "1");
 
     println!("done in {:?}", instant.elapsed());
 }
