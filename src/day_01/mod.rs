@@ -1,39 +1,3 @@
-use std::cmp::{max_by_key, min_by_key};
-
-use itertools::Itertools;
-use nom::FindSubstring;
-
-type Input = Vec<String>;
-
-#[aoc_generator(day1)]
-pub fn input_generator(input: &str) -> Input {
-    input.lines().map(str::to_string).collect_vec()
-}
-
-fn char_into_digit(input: &char) -> u32 {
-    *input as u32 - ('0' as u32)
-}
-
-fn first_and_last_digit(input: &str) -> (u32, u32) {
-    (
-        input
-            .chars()
-            .filter(|c| c.is_numeric())
-            .peekable()
-            .peek()
-            .map(char_into_digit)
-            .unwrap(),
-        input
-            .chars()
-            .filter(|c| c.is_numeric())
-            .rev()
-            .peekable()
-            .peek()
-            .map(char_into_digit)
-            .unwrap(),
-    )
-}
-
 const DIGIT_WORDS: [(&str, u32); 10] = [
     ("zero", 0),
     ("one", 1),
@@ -47,68 +11,54 @@ const DIGIT_WORDS: [(&str, u32); 10] = [
     ("nine", 9),
 ];
 
-fn min_by_index(a: Option<(usize, u32)>, b: Option<(usize, u32)>) -> (usize, u32) {
-    match (a, b) {
-        (Some(a), Some(b)) => min_by_key(a, b, |v| v.0),
-        (Some(a), None) => a,
-        (None, Some(b)) => b,
-        _ => panic!("no digits found"),
+fn digit_or_word(
+    input_bytes: &[u8],
+    index_range: impl Iterator<Item = usize>,
+    word_list: &[(&str, u32)],
+) -> u32 {
+    for char_index in index_range {
+        let current_byte = input_bytes[char_index];
+        if current_byte.is_ascii_digit() {
+            return (current_byte - b'0') as u32;
+        }
+        for &(digit_word, value) in word_list {
+            if char_index + digit_word.len() > input_bytes.len() {
+                continue;
+            }
+            if &input_bytes[char_index..char_index + digit_word.len()] == digit_word.as_bytes() {
+                return value;
+            }
+        }
     }
-}
-fn max_by_index(a: Option<(usize, u32)>, b: Option<(usize, u32)>) -> (usize, u32) {
-    match (a, b) {
-        (Some(a), Some(b)) => max_by_key(a, b, |v| v.0),
-        (Some(a), None) => a,
-        (None, Some(b)) => b,
-        _ => panic!("no digits found"),
-    }
+    panic!("there are no digits")
 }
 
-fn first_digit_or_word(input: &str) -> u32 {
-    let first_word_index = DIGIT_WORDS
-        .iter()
-        .filter_map(|(word, value)| input.find_substring(word).map(|index| (index, *value)))
-        .min_by_key(|(index, _)| *index);
-    let first_digit_index = input
-        .char_indices()
-        .find(|(_, char)| char.is_numeric())
-        .map(|(index, char)| (index, char_into_digit(&char)));
-    min_by_index(first_word_index, first_digit_index).1
-}
-fn last_digit_or_word(input: &str) -> u32 {
-    let last_word_index = DIGIT_WORDS
-        .iter()
-        .filter_map(|(word, value)| {
-            input
-                .match_indices(word)
-                .last()
-                .map(|(index, _)| (index, *value))
-        })
-        .max_by_key(|(index, _)| *index);
-    let last_digit_index = input
-        .char_indices()
-        .rev()
-        .find(|(_, char)| char.is_numeric())
-        .map(|(index, char)| (index, char_into_digit(&char)));
-    max_by_index(last_word_index, last_digit_index).1
+fn solve_part(input: &str, part_solver: impl Fn(&str) -> (u32, u32)) -> u32 {
+    input
+        .lines()
+        .map(part_solver)
+        .map(|(first, last)| first * 10 + last)
+        .sum()
 }
 
 #[aoc(day1, part1)]
-pub fn part_1(input: &Input) -> u32 {
-    input
-        .iter()
-        .map(|s| first_and_last_digit(s))
-        .map(|(first, last)| first * 10 + last)
-        .sum()
+pub fn part_1(input: &str) -> u32 {
+    solve_part(input, |s| {
+        (
+            digit_or_word(s.as_bytes(), 0..s.len(), &[]),
+            digit_or_word(s.as_bytes(), (0..s.len()).rev(), &[]),
+        )
+    })
 }
 
 #[aoc(day1, part2)]
-pub fn part_2(input: &Input) -> u32 {
-    input
-        .iter()
-        .map(|s| (first_digit_or_word(s), last_digit_or_word(s)))
-        .map(|(first, last)| first * 10 + last)
-        .sum()
+pub fn part_2(input: &str) -> u32 {
+    solve_part(input, |s| {
+        (
+            digit_or_word(s.as_bytes(), 0..s.len(), &DIGIT_WORDS),
+            digit_or_word(s.as_bytes(), (0..s.len()).rev(), &DIGIT_WORDS),
+        )
+    })
 }
 
 #[cfg(test)]
@@ -118,16 +68,16 @@ mod tests {
 
     #[test]
     fn test() {
-        let input1 = input_generator(indoc! {
+        let input1 = indoc! {
             "
             1abc2
             pqr3stu8vwx
             a1b2c3d4e5f
             treb7uchet
             "
-        });
-        assert_eq!(part_1(&input1), 142);
-        let input2 = input_generator(indoc! {
+        };
+        assert_eq!(part_1(input1), 142);
+        let input2 = indoc! {
             "
             two1nine
             eightwothree
@@ -137,8 +87,8 @@ mod tests {
             zoneight234
             7pqrstsixteen
             "
-        });
-        assert_eq!(part_2(&input2), 281);
+        };
+        assert_eq!(part_2(input2), 281);
     }
 
     #[yare::parameterized(
@@ -149,7 +99,13 @@ mod tests {
     )]
     fn part1_lines_test(input: &str, first_digit: u32, last_digit: u32) {
         dbg!(input);
-        assert_eq!(first_and_last_digit(input), (first_digit, last_digit));
+        assert_eq!(
+            (
+                digit_or_word(input.as_bytes(), 0..input.len(), &[]),
+                digit_or_word(input.as_bytes(), (0..input.len()).rev(), &[]),
+            ),
+            (first_digit, last_digit)
+        );
     }
 
     #[yare::parameterized(
@@ -164,7 +120,10 @@ mod tests {
     fn part2_lines_test(input: &str, first_digit: u32, last_digit: u32) {
         dbg!(input);
         assert_eq!(
-            (first_digit_or_word(input), last_digit_or_word(input)),
+            (
+                digit_or_word(input.as_bytes(), 0..input.len(), &DIGIT_WORDS),
+                digit_or_word(input.as_bytes(), (0..input.len()).rev(), &DIGIT_WORDS),
+            ),
             (first_digit, last_digit)
         );
     }
